@@ -18,10 +18,11 @@
 7. [Step 7 — Benchmarks](#step-7--benchmarks)
 
 ---
-
+If you already have access to your own Workspace, you can skip Step1 and go to Step2
+---
 ## Step 1 — Grant Access to the Workspace
 
-Before anything else, the Harry Rosen team needs access to the Databricks workspace so they can view notebooks, query data, and eventually use the Genie space.
+Access to the Databricks workspace so they can view notebooks, query data, and eventually use the Genie space.
 
 ### 1.1 Add Users to the Workspace
 
@@ -134,7 +135,7 @@ Inserted 3830 transactions
 3. Confirm all 5 tables appear
 4. Click any table → **Sample Data** tab to preview rows
 
-> **Talk track for Jay:** "All of this data lives in Unity Catalog — your single governed data layer. Every table has column-level comments, data types, and lineage tracked automatically. Genie will read this metadata to understand your data model."
+
 
 ---
 
@@ -237,7 +238,7 @@ Use this table to track baseline accuracy during the demo:
 | B9 | ✅ / ⚠️ / ❌ | |
 | B10 | ✅ / ⚠️ / ❌ | |
 
-> **Talk track for Jay:** "What you're seeing here is Genie with zero configuration — just the tables and their column names. Some answers are already correct because Unity Catalog column comments give Genie enough context. The next step shows how a few minutes of configuration dramatically improves accuracy."
+
 
 ---
 
@@ -302,30 +303,39 @@ Instructions are the most powerful configuration lever. They teach Genie the bus
 Harry Rosen is a luxury Canadian menswear retailer founded in 1954.
 
 KEY BUSINESS DEFINITIONS:
-- "Active client"    = client whose last_purchase_date is within the last 12 months
-- "VIP client"       = is_vip = TRUE (lifetime_spend > $10,000 or manually flagged)
+- "Active client"    = last_purchase_date within the last 12 months (client_segment = 'Active')
+- "VIP client"       = is_vip = TRUE (lifetime_spend > $10,000 or flagged manually)
+- "VVIP client"       = is_vip = TRUE (lifetime_spend > $20,000)
 - "At-Risk client"   = client_segment = 'At-Risk': a VIP who has not purchased in 6+ months
 - "Dormant client"   = client_segment = 'Dormant': no purchase in over 12 months
-- "New client"       = client_segment = 'New': purchased within the last 6 months, fewer than 3 orders
+- "New client"       = client_segment = 'New': purchased within last 6 months, fewer than 3 orders
 - "Re-engaged"       = client_segment = 'Re-engaged': was dormant, has recently returned
-- "Advisor"          = Harry Rosen style consultant — same as "stylist" in this dataset
-- "Revenue"          = SUM(total_amount) WHERE is_return = FALSE
-- "AOV"              = AVG(total_amount) WHERE is_return = FALSE
-- "Purchase frequency" = COUNT(transaction_id) per client per calendar year
-- Membership tiers ranked lowest to highest: Classic → Silver → Gold → Platinum
+- "Advisor"          = a Harry Rosen style consultant (same as "stylist")
+- "Revenue"          = SUM(total_amount) from transactions WHERE is_return = FALSE
+- "AOV"              = AVG(total_amount) from transactions WHERE is_return = FALSE
+- "Purchase frequency" = COUNT(transaction_id) per client per year
+- Membership tiers in order (lowest → highest): Classic → Silver → Gold → Platinum
 
 STORE REGIONS:
 - East:    Toronto (stores 1, 2), Ottawa (store 7), London (store 8), Montreal (store 5)
 - West:    Vancouver (stores 3, 4)
 - Central: Calgary (store 6)
 
-DEFAULT QUERY RULES:
-- Always EXCLUDE returns (is_return = FALSE) when calculating revenue or transaction counts
+QUERY RULES:
+- When asked about "revenue", always EXCLUDE returns (is_return = FALSE)
 - When asked for "top clients", sort by lifetime_spend DESC unless otherwise specified
-- When asked about "at-risk" without further detail, filter client_segment = 'At-Risk'
+- When asked about "at-risk" clients without further detail, filter client_segment = 'At-Risk'
 - When asked about "this year", filter YEAR(transaction_date) = YEAR(CURRENT_DATE)
 - When asked about "inactive", use last_purchase_date < DATE_SUB(CURRENT_DATE, 180)
-- "High-value" clients means lifetime_spend > $20,000 unless a threshold is specified
+
+TABLE RELATIONSHIPS:
+- transactions.client_id  → clients.client_id
+- transactions.store_id   → stores.store_id
+- transactions.advisor_id → advisors.advisor_id
+- transactions.product_id → products.product_id
+- clients.preferred_store_id → stores.store_id
+- clients.advisor_id      → advisors.advisor_id
+- advisors.store_id       → stores.store_id
 ```
 
 ---
@@ -462,7 +472,7 @@ After adding all configuration, re-run the same 10 questions from Step 4 and com
 | B9 — Clients inactive 6 months | | | |
 | B10 — Return rate by category | | | |
 
-> **Talk track for Jay:** "Notice how the same questions now produce more accurate, consistent results. This is the power of Genie's configuration layer — it's not a black box. You control the business vocabulary, the join logic, and the calculation standards. As your team uses Genie and gives feedback, these instructions get refined over time."
+> 
 
 ---
 
@@ -675,12 +685,11 @@ ORDER BY return_rate_pct DESC
 
 > **Expected improvement:** Most POCs see benchmark scores go from ~40–50% before configuration to 80–90% after adding instructions, certified queries, and expressions. This delta is a powerful closing argument for the business value of the configuration investment.
 
-### 7.5 Share the Benchmark Results with Jay
+### 7.5 Share the Benchmark Results
 
 After running both benchmarks:
 
 1. Screenshot the before/after scores
-2. Walk Jay through specific examples of questions that improved
 3. Show the `View SQL` comparison — the SQL Genie generated before vs. after configuration
 4. Explain that this benchmark set can grow over time as the Harry Rosen team identifies their most important recurring questions
 
