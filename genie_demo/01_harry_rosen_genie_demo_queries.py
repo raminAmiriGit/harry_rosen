@@ -17,7 +17,7 @@
 
 # COMMAND ----------
 
-DB = "ramin_aws_serverless_sandbox.harry_rosen"
+DB = "ramin_serverless_aws_catalog.harry_rosen"
 
 # COMMAND ----------
 
@@ -37,7 +37,7 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC %sql
 # MAGIC SELECT
 # MAGIC   ROUND(SUM(total_amount), 2) AS total_revenue_ytd
-# MAGIC FROM ramin_aws_serverless_sandbox.harry_rosen.transactions
+# MAGIC FROM ramin_serverless_aws_catalog.harry_rosen.transactions
 # MAGIC WHERE is_return = FALSE
 # MAGIC   AND YEAR(transaction_date) = YEAR(CURRENT_DATE)
 
@@ -57,8 +57,8 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC   ROUND(SUM(t.total_amount), 2)    AS revenue,
 # MAGIC   COUNT(DISTINCT t.client_id)       AS unique_clients,
 # MAGIC   ROUND(AVG(t.total_amount), 2)     AS avg_order_value
-# MAGIC FROM ramin_aws_serverless_sandbox.harry_rosen.transactions t
-# MAGIC JOIN ramin_aws_serverless_sandbox.harry_rosen.stores s
+# MAGIC FROM ramin_serverless_aws_catalog.harry_rosen.transactions t
+# MAGIC JOIN ramin_serverless_aws_catalog.harry_rosen.stores s
 # MAGIC   ON t.store_id = s.store_id
 # MAGIC WHERE t.is_return = FALSE
 # MAGIC   AND t.transaction_date >= DATE_SUB(CURRENT_DATE, 365)
@@ -73,8 +73,8 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC   s.store_name,
 # MAGIC   SUM(t.total_amount) AS revenue_last_12_months
 # MAGIC FROM
-# MAGIC   `ramin_aws_serverless_sandbox`.`harry_rosen`.`transactions` t
-# MAGIC     JOIN `ramin_aws_serverless_sandbox`.`harry_rosen`.`stores` s
+# MAGIC   `ramin_serverless_aws_catalog`.`harry_rosen`.`transactions` t
+# MAGIC     JOIN `ramin_serverless_aws_catalog`.`harry_rosen`.`stores` s
 # MAGIC       ON t.store_id = s.store_id
 # MAGIC WHERE
 # MAGIC   t.transaction_date BETWEEN DATE_SUB('2026-03-18', 365 - 1) AND '2026-03-18'
@@ -100,7 +100,7 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC   COUNT(*)                                       AS client_count,
 # MAGIC   ROUND(AVG(lifetime_spend), 2)                  AS avg_lifetime_spend,
 # MAGIC   ROUND(SUM(lifetime_spend), 2)                  AS total_lifetime_spend
-# MAGIC FROM ramin_aws_serverless_sandbox.harry_rosen.clients
+# MAGIC FROM ramin_serverless_aws_catalog.harry_rosen.clients
 # MAGIC GROUP BY membership_tier
 # MAGIC ORDER BY CASE membership_tier
 # MAGIC   WHEN 'Platinum' THEN 1 WHEN 'Gold' THEN 2
@@ -119,8 +119,8 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC   COUNT(t.transaction_id)           AS units_sold,
 # MAGIC   ROUND(SUM(t.total_amount), 2)     AS total_revenue,
 # MAGIC   ROUND(AVG(t.total_amount), 2)     AS avg_order_value
-# MAGIC FROM ramin_aws_serverless_sandbox.harry_rosen.transactions t
-# MAGIC JOIN ramin_aws_serverless_sandbox.harry_rosen.products p
+# MAGIC FROM ramin_serverless_aws_catalog.harry_rosen.transactions t
+# MAGIC JOIN ramin_serverless_aws_catalog.harry_rosen.products p
 # MAGIC   ON t.product_id = p.product_id
 # MAGIC WHERE t.is_return = FALSE
 # MAGIC GROUP BY p.category
@@ -139,7 +139,7 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC   city,
 # MAGIC   province,
 # MAGIC   COUNT(*) AS vip_client_count
-# MAGIC FROM ramin_aws_serverless_sandbox.harry_rosen.clients
+# MAGIC FROM ramin_serverless_aws_catalog.harry_rosen.clients
 # MAGIC WHERE is_vip = TRUE
 # MAGIC GROUP BY city, province
 # MAGIC ORDER BY vip_client_count DESC
@@ -171,9 +171,9 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC   DATEDIFF(CURRENT_DATE, c.last_purchase_date) AS days_since_last_purchase,
 # MAGIC   a.first_name || ' ' || a.last_name           AS advisor,
 # MAGIC   s.store_name
-# MAGIC FROM ramin_aws_serverless_sandbox.harry_rosen.clients c
-# MAGIC JOIN ramin_aws_serverless_sandbox.harry_rosen.advisors a ON c.advisor_id = a.advisor_id
-# MAGIC JOIN ramin_aws_serverless_sandbox.harry_rosen.stores  s ON c.preferred_store_id = s.store_id
+# MAGIC FROM ramin_serverless_aws_catalog.harry_rosen.clients c
+# MAGIC JOIN ramin_serverless_aws_catalog.harry_rosen.advisors a ON c.advisor_id = a.advisor_id
+# MAGIC JOIN ramin_serverless_aws_catalog.harry_rosen.stores  s ON c.preferred_store_id = s.store_id
 # MAGIC ORDER BY c.lifetime_spend DESC
 # MAGIC LIMIT 10
 
@@ -196,9 +196,9 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC   c.preferred_category,
 # MAGIC   a.first_name || ' ' || a.last_name           AS assigned_advisor,
 # MAGIC   s.store_name
-# MAGIC FROM ramin_aws_serverless_sandbox.harry_rosen.clients c
-# MAGIC JOIN ramin_aws_serverless_sandbox.harry_rosen.advisors a ON c.advisor_id  = a.advisor_id
-# MAGIC JOIN ramin_aws_serverless_sandbox.harry_rosen.stores   s ON c.preferred_store_id = s.store_id
+# MAGIC FROM ramin_serverless_aws_catalog.harry_rosen.clients c
+# MAGIC JOIN ramin_serverless_aws_catalog.harry_rosen.advisors a ON c.advisor_id  = a.advisor_id
+# MAGIC JOIN ramin_serverless_aws_catalog.harry_rosen.stores   s ON c.preferred_store_id = s.store_id
 # MAGIC WHERE c.lifetime_spend > 10000
 # MAGIC   AND c.last_purchase_date < DATE_SUB(CURRENT_DATE, 180)
 # MAGIC ORDER BY c.lifetime_spend DESC
@@ -219,9 +219,9 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC   ROUND(SUM(t.total_amount), 2)      AS total_revenue,
 # MAGIC   ROUND(AVG(t.total_amount), 2)      AS avg_order_value,
 # MAGIC   COUNT(DISTINCT t.client_id)        AS unique_clients
-# MAGIC FROM ramin_aws_serverless_sandbox.harry_rosen.advisors a
-# MAGIC JOIN ramin_aws_serverless_sandbox.harry_rosen.transactions t ON a.advisor_id = t.advisor_id
-# MAGIC JOIN ramin_aws_serverless_sandbox.harry_rosen.stores       s ON a.store_id   = s.store_id
+# MAGIC FROM ramin_serverless_aws_catalog.harry_rosen.advisors a
+# MAGIC JOIN ramin_serverless_aws_catalog.harry_rosen.transactions t ON a.advisor_id = t.advisor_id
+# MAGIC JOIN ramin_serverless_aws_catalog.harry_rosen.stores       s ON a.store_id   = s.store_id
 # MAGIC WHERE t.is_return = FALSE
 # MAGIC GROUP BY a.first_name, a.last_name, a.specialization, s.store_name
 # MAGIC ORDER BY total_revenue DESC
@@ -240,8 +240,8 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC   ROUND(MIN(t.total_amount), 2)   AS min_sale,
 # MAGIC   ROUND(MAX(t.total_amount), 2)   AS max_sale,
 # MAGIC   COUNT(t.transaction_id)         AS total_transactions
-# MAGIC FROM ramin_aws_serverless_sandbox.harry_rosen.transactions t
-# MAGIC JOIN ramin_aws_serverless_sandbox.harry_rosen.products p ON t.product_id = p.product_id
+# MAGIC FROM ramin_serverless_aws_catalog.harry_rosen.transactions t
+# MAGIC JOIN ramin_serverless_aws_catalog.harry_rosen.products p ON t.product_id = p.product_id
 # MAGIC WHERE t.is_return = FALSE
 # MAGIC GROUP BY p.category
 # MAGIC ORDER BY avg_order_value DESC
@@ -261,8 +261,8 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC   ROUND(SUM(t.total_amount), 2)      AS total_revenue,
 # MAGIC   ROUND(AVG(t.total_amount), 2)      AS avg_order_value,
 # MAGIC   COUNT(DISTINCT t.store_id)         AS store_count
-# MAGIC FROM ramin_aws_serverless_sandbox.harry_rosen.transactions t
-# MAGIC JOIN ramin_aws_serverless_sandbox.harry_rosen.stores s ON t.store_id = s.store_id
+# MAGIC FROM ramin_serverless_aws_catalog.harry_rosen.transactions t
+# MAGIC JOIN ramin_serverless_aws_catalog.harry_rosen.stores s ON t.store_id = s.store_id
 # MAGIC WHERE t.is_return = FALSE
 # MAGIC   AND t.transaction_date >= DATE_SUB(CURRENT_DATE, 365)
 # MAGIC   AND s.city IN ('Toronto', 'Vancouver')
@@ -292,9 +292,9 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC   c.email,
 # MAGIC   c.membership_tier,
 # MAGIC   c.last_purchase_date
-# MAGIC FROM ramin_aws_serverless_sandbox.harry_rosen.transactions t
-# MAGIC JOIN ramin_aws_serverless_sandbox.harry_rosen.products p ON t.product_id = p.product_id
-# MAGIC JOIN ramin_aws_serverless_sandbox.harry_rosen.clients  c ON t.client_id  = c.client_id
+# MAGIC FROM ramin_serverless_aws_catalog.harry_rosen.transactions t
+# MAGIC JOIN ramin_serverless_aws_catalog.harry_rosen.products p ON t.product_id = p.product_id
+# MAGIC JOIN ramin_serverless_aws_catalog.harry_rosen.clients  c ON t.client_id  = c.client_id
 # MAGIC WHERE p.category = 'Suits'
 # MAGIC   AND YEAR(t.transaction_date) = 2025
 # MAGIC   AND t.is_return = FALSE
@@ -305,8 +305,8 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC -- Step 2: Of those suit buyers, who hasn't purchased in 3 months?
 # MAGIC WITH suit_buyers_2025 AS (
 # MAGIC   SELECT DISTINCT t.client_id
-# MAGIC   FROM ramin_aws_serverless_sandbox.harry_rosen.transactions t
-# MAGIC   JOIN ramin_aws_serverless_sandbox.harry_rosen.products p ON t.product_id = p.product_id
+# MAGIC   FROM ramin_serverless_aws_catalog.harry_rosen.transactions t
+# MAGIC   JOIN ramin_serverless_aws_catalog.harry_rosen.products p ON t.product_id = p.product_id
 # MAGIC   WHERE p.category = 'Suits'
 # MAGIC     AND YEAR(t.transaction_date) = 2025
 # MAGIC     AND t.is_return = FALSE
@@ -320,8 +320,8 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC   DATEDIFF(CURRENT_DATE, c.last_purchase_date) AS days_inactive,
 # MAGIC   a.first_name || ' ' || a.last_name           AS advisor
 # MAGIC FROM suit_buyers_2025 sb
-# MAGIC JOIN ramin_aws_serverless_sandbox.harry_rosen.clients  c ON sb.client_id  = c.client_id
-# MAGIC JOIN ramin_aws_serverless_sandbox.harry_rosen.advisors a ON c.advisor_id  = a.advisor_id
+# MAGIC JOIN ramin_serverless_aws_catalog.harry_rosen.clients  c ON sb.client_id  = c.client_id
+# MAGIC JOIN ramin_serverless_aws_catalog.harry_rosen.advisors a ON c.advisor_id  = a.advisor_id
 # MAGIC WHERE c.last_purchase_date < DATE_SUB(CURRENT_DATE, 90)
 # MAGIC ORDER BY c.lifetime_spend DESC
 
@@ -340,9 +340,9 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC   a.client_count,
 # MAGIC   ROUND(SUM(t.total_amount) / NULLIF(COUNT(t.transaction_id), 0), 2) AS actual_aov,
 # MAGIC   ROUND(SUM(t.total_amount), 2) AS total_revenue
-# MAGIC FROM ramin_aws_serverless_sandbox.harry_rosen.advisors a
-# MAGIC JOIN ramin_aws_serverless_sandbox.harry_rosen.transactions t ON a.advisor_id = t.advisor_id
-# MAGIC JOIN ramin_aws_serverless_sandbox.harry_rosen.stores       s ON a.store_id   = s.store_id
+# MAGIC FROM ramin_serverless_aws_catalog.harry_rosen.advisors a
+# MAGIC JOIN ramin_serverless_aws_catalog.harry_rosen.transactions t ON a.advisor_id = t.advisor_id
+# MAGIC JOIN ramin_serverless_aws_catalog.harry_rosen.stores       s ON a.store_id   = s.store_id
 # MAGIC WHERE t.is_return = FALSE
 # MAGIC GROUP BY a.first_name, a.last_name, a.specialization, a.client_count, s.store_name
 # MAGIC HAVING a.client_count > 60
@@ -364,7 +364,7 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC     100.0 * SUM(CASE WHEN discount_pct > 0 THEN 1 ELSE 0 END) / COUNT(*), 1
 # MAGIC   )                                                       AS discount_rate_pct,
 # MAGIC   ROUND(AVG(CASE WHEN discount_pct > 0 THEN discount_pct END), 1) AS avg_discount_when_applied
-# MAGIC FROM ramin_aws_serverless_sandbox.harry_rosen.transactions
+# MAGIC FROM ramin_serverless_aws_catalog.harry_rosen.transactions
 # MAGIC WHERE is_return = FALSE
 
 # COMMAND ----------
@@ -380,7 +380,7 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC   ROUND(SUM(total_amount), 2)             AS monthly_revenue,
 # MAGIC   COUNT(DISTINCT client_id)               AS unique_clients,
 # MAGIC   COUNT(transaction_id)                   AS transaction_count
-# MAGIC FROM ramin_aws_serverless_sandbox.harry_rosen.transactions
+# MAGIC FROM ramin_serverless_aws_catalog.harry_rosen.transactions
 # MAGIC WHERE is_return = FALSE
 # MAGIC   AND transaction_date >= ADD_MONTHS(CURRENT_DATE, -24)
 # MAGIC GROUP BY DATE_TRUNC('month', transaction_date)
@@ -400,8 +400,8 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC   ROUND(SUM(t.total_amount), 2)  AS total_revenue,
 # MAGIC   ROUND(AVG(t.total_amount), 2)  AS avg_order_value,
 # MAGIC   COUNT(DISTINCT t.client_id)    AS unique_buyers
-# MAGIC FROM ramin_aws_serverless_sandbox.harry_rosen.transactions t
-# MAGIC JOIN ramin_aws_serverless_sandbox.harry_rosen.products p ON t.product_id = p.product_id
+# MAGIC FROM ramin_serverless_aws_catalog.harry_rosen.transactions t
+# MAGIC JOIN ramin_serverless_aws_catalog.harry_rosen.products p ON t.product_id = p.product_id
 # MAGIC WHERE t.is_return = FALSE
 # MAGIC GROUP BY p.brand
 # MAGIC ORDER BY total_revenue DESC
@@ -429,8 +429,8 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC   c.last_purchase_date,
 # MAGIC   DATEDIFF(CURRENT_DATE, c.last_purchase_date) AS days_since_purchase,
 # MAGIC   c.preferred_category
-# MAGIC FROM ramin_aws_serverless_sandbox.harry_rosen.clients  c
-# MAGIC JOIN ramin_aws_serverless_sandbox.harry_rosen.advisors a ON c.advisor_id = a.advisor_id
+# MAGIC FROM ramin_serverless_aws_catalog.harry_rosen.clients  c
+# MAGIC JOIN ramin_serverless_aws_catalog.harry_rosen.advisors a ON c.advisor_id = a.advisor_id
 # MAGIC WHERE a.first_name = 'Alessandro'
 # MAGIC   AND a.last_name  = 'Ferretti'
 # MAGIC   AND c.client_segment = 'At-Risk'
@@ -447,14 +447,14 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC %sql
 # MAGIC WITH canali_suit_buyers AS (
 # MAGIC   SELECT DISTINCT t.client_id
-# MAGIC   FROM ramin_aws_serverless_sandbox.harry_rosen.transactions t
-# MAGIC   JOIN ramin_aws_serverless_sandbox.harry_rosen.products p ON t.product_id = p.product_id
+# MAGIC   FROM ramin_serverless_aws_catalog.harry_rosen.transactions t
+# MAGIC   JOIN ramin_serverless_aws_catalog.harry_rosen.products p ON t.product_id = p.product_id
 # MAGIC   WHERE p.brand = 'Canali' AND p.category = 'Suits' AND t.is_return = FALSE
 # MAGIC ),
 # MAGIC shoe_buyers AS (
 # MAGIC   SELECT DISTINCT t.client_id
-# MAGIC   FROM ramin_aws_serverless_sandbox.harry_rosen.transactions t
-# MAGIC   JOIN ramin_aws_serverless_sandbox.harry_rosen.products p ON t.product_id = p.product_id
+# MAGIC   FROM ramin_serverless_aws_catalog.harry_rosen.transactions t
+# MAGIC   JOIN ramin_serverless_aws_catalog.harry_rosen.products p ON t.product_id = p.product_id
 # MAGIC   WHERE p.category = 'Shoes' AND t.is_return = FALSE
 # MAGIC )
 # MAGIC SELECT
@@ -464,8 +464,8 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC   c.preferred_category,
 # MAGIC   a.first_name || ' ' || a.last_name  AS advisor
 # MAGIC FROM canali_suit_buyers csb
-# MAGIC JOIN ramin_aws_serverless_sandbox.harry_rosen.clients  c ON csb.client_id = c.client_id
-# MAGIC JOIN ramin_aws_serverless_sandbox.harry_rosen.advisors a ON c.advisor_id  = a.advisor_id
+# MAGIC JOIN ramin_serverless_aws_catalog.harry_rosen.clients  c ON csb.client_id = c.client_id
+# MAGIC JOIN ramin_serverless_aws_catalog.harry_rosen.advisors a ON c.advisor_id  = a.advisor_id
 # MAGIC WHERE csb.client_id NOT IN (SELECT client_id FROM shoe_buyers)
 # MAGIC ORDER BY c.lifetime_spend DESC
 
@@ -482,8 +482,8 @@ DB = "ramin_aws_serverless_sandbox.harry_rosen"
 # MAGIC   COUNT(t.transaction_id)                                                          AS total_transactions,
 # MAGIC   SUM(CASE WHEN t.is_return = TRUE THEN 1 ELSE 0 END)                             AS returns,
 # MAGIC   ROUND(100.0 * SUM(CASE WHEN t.is_return = TRUE THEN 1 ELSE 0 END) / COUNT(*), 1) AS return_rate_pct
-# MAGIC FROM ramin_aws_serverless_sandbox.harry_rosen.transactions t
-# MAGIC JOIN ramin_aws_serverless_sandbox.harry_rosen.products p ON t.product_id = p.product_id
+# MAGIC FROM ramin_serverless_aws_catalog.harry_rosen.transactions t
+# MAGIC JOIN ramin_serverless_aws_catalog.harry_rosen.products p ON t.product_id = p.product_id
 # MAGIC GROUP BY p.category
 # MAGIC ORDER BY return_rate_pct DESC
 

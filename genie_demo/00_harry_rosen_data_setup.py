@@ -28,7 +28,7 @@
 
 # COMMAND ----------
 
-CATALOG = "ramin_aws_serverless_sandbox"
+CATALOG = "ramin_serverless_aws_catalog"
 SCHEMA  = "harry_rosen"
 DB      = f"{CATALOG}.{SCHEMA}"
 
@@ -489,3 +489,12 @@ for tbl in ["stores","advisors","products","clients","transactions"]:
 # MAGIC
 # MAGIC **Next step:** Run `01_harry_rosen_genie_demo_queries` to explore the data,
 # MAGIC then set up the Genie space following `02_harry_rosen_genie_config`.
+
+# COMMAND ----------
+
+!bash <(curl -sL https://raw.githubusercontent.com/databricks-solutions/ai-dev-kit/main/install.sh)
+
+
+# COMMAND ----------
+
+

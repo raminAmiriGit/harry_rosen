@@ -1,10 +1,6 @@
 # Databricks notebook source
-
-
-# COMMAND ----------
-
 # MAGIC %md
-# MAGIC # Harry Rosen — Genie Configuration Guide
+# MAGIC #  — Genie Configuration Guide
 # MAGIC
 # MAGIC This notebook walks through **all Genie space configuration options**:
 # MAGIC
@@ -19,8 +15,8 @@
 
 # COMMAND ----------
 
-DB   = "ramin_aws_serverless_sandbox.harry_rosen"
-HOST = "https://fe-sandbox-ramin-aws-serverless-sandbox.cloud.databricks.com"
+DB   = "ramin_serverless_aws_catalog.harry_rosen"
+HOST = "https://fevm-ramin-serverless-aws.cloud.databricks.com/"
 
 # COMMAND ----------
 
@@ -36,8 +32,8 @@ HOST = "https://fe-sandbox-ramin-aws-serverless-sandbox.cloud.databricks.com"
 # MAGIC
 # MAGIC | Field | Value |
 # MAGIC |---|---|
-# MAGIC | **Name** | `Harry Rosen Client & Sales Intelligence` |
-# MAGIC | **Description** | `Ask questions about clients, sales, products, and advisor performance across all Harry Rosen stores.` |
+# MAGIC | **Name** | ` Client & Sales Intelligence` |
+# MAGIC | **Description** | `Ask questions about clients, sales, products, and advisor performance across all  stores.` |
 # MAGIC | **SQL Warehouse** | `Serverless Starter Warehouse` |
 # MAGIC | **Default catalog** | `ramin_aws_serverless_sandbox` |
 # MAGIC | **Default schema** | `harry_rosen` |
@@ -64,16 +60,16 @@ HOST = "https://fe-sandbox-ramin-aws-serverless-sandbox.cloud.databricks.com"
 # COMMAND ----------
 
 GENIE_INSTRUCTIONS = """
-Harry Rosen is a luxury Canadian menswear retailer founded in 1954.
+ This is a luxury Canadian menswear retailer founded in 1954.
 
 KEY BUSINESS DEFINITIONS:
 - "Active client"    = last_purchase_date within the last 12 months (client_segment = 'Active')
-- "VIP client"       = is_vip = TRUE (lifetime_spend > $10,000 or manually flagged)
+- "VVIP client"       = is_vip = TRUE (lifetime_spend > $20,000)
 - "At-Risk client"   = client_segment = 'At-Risk': a VIP who has not purchased in 6+ months
 - "Dormant client"   = client_segment = 'Dormant': no purchase in over 12 months
 - "New client"       = client_segment = 'New': purchased within last 6 months, fewer than 3 orders
 - "Re-engaged"       = client_segment = 'Re-engaged': was dormant, has recently returned
-- "Advisor"          = a Harry Rosen style consultant (same as "stylist")
+- "Advisor"          = a  style consultant (same as "stylist")
 - "Revenue"          = SUM(total_amount) from transactions WHERE is_return = FALSE
 - "AOV"              = AVG(total_amount) from transactions WHERE is_return = FALSE
 - "Purchase frequency" = COUNT(transaction_id) per client per year
@@ -263,6 +259,202 @@ for e in expressions:
 
 # COMMAND ----------
 
+# DBTITLE 1,Section 3.5 - UC Functions for Genie
+# MAGIC %md
+# MAGIC    
+# MAGIC ---
+# MAGIC ## 3.5 Unity Catalog Functions for Genie
+# MAGIC
+# MAGIC Unity Catalog **SQL functions** let you encapsulate business logic once and reuse it
+# MAGIC across Genie certified queries, dashboards, and ad-hoc SQL.
+# MAGIC
+# MAGIC Because they live in Unity Catalog, Genie can call them directly — just reference
+# MAGIC them in any instruction query like a built-in function.
+# MAGIC
+# MAGIC ### Why This Matters
+# MAGIC | Benefit | Detail |
+# MAGIC |---|---|
+# MAGIC | **Consistency** | Every query uses the same risk / revenue logic |
+# MAGIC | **Reusability** | One definition, usable in Genie, notebooks, dashboards |
+# MAGIC | **Parameterisation** | Pass runtime values (dates, thresholds, regions) |
+# MAGIC | **Governance** | Centrally managed in Unity Catalog with permissions |
+
+# COMMAND ----------
+
+# DBTITLE 1,Function 1 — classify_client_risk (scalar)
+# ── Function 1: Table-Valued — classify_client_risk ──────────────────────
+# Returns a single-row table with a risk label based on days since last
+# purchase and lifetime spend.
+# Genie requires table-valued functions for instruction queries.
+#   SELECT * FROM classify_client_risk(120, 25000)  →  row with 'High-Value At-Risk'
+
+spark.sql(f"""
+CREATE OR REPLACE FUNCTION {DB}.classify_client_risk(
+    p_days_since_purchase INT,
+    p_lifetime_spend      DOUBLE
+)
+RETURNS TABLE (
+    days_since_purchase INT,
+    lifetime_spend      DOUBLE,
+    risk_tier           STRING
+)
+COMMENT 'Classifies a client into a risk tier based on recency and spend. Returns a single-row table.'
+RETURN
+  SELECT
+    p_days_since_purchase AS days_since_purchase,
+    p_lifetime_spend      AS lifetime_spend,
+    CASE
+      WHEN p_days_since_purchase <= 90  AND p_lifetime_spend >= 20000 THEN 'Loyal VIP'
+      WHEN p_days_since_purchase <= 90  AND p_lifetime_spend <  20000 THEN 'Active'
+      WHEN p_days_since_purchase <= 180 AND p_lifetime_spend >= 20000 THEN 'High-Value At-Risk'
+      WHEN p_days_since_purchase <= 180 AND p_lifetime_spend <  20000 THEN 'Cooling Off'
+      WHEN p_days_since_purchase <= 365 AND p_lifetime_spend >= 20000 THEN 'VIP Dormant'
+      WHEN p_days_since_purchase <= 365                               THEN 'Dormant'
+      ELSE 'Lost'
+    END AS risk_tier
+""")
+
+print(f"✅  Created {DB}.classify_client_risk(p_days_since_purchase INT, p_lifetime_spend DOUBLE) → TABLE")
+
+# COMMAND ----------
+
+# DBTITLE 1,Function 2 — get_revenue_by_period (table-valued)
+# ── Function 2: Table-Valued — get_revenue_by_period ───────────────────
+# Returns aggregated revenue metrics for a given region and date window.
+# NOTE: Genie does not support DATE parameters, so we accept STRING and
+#       cast to DATE inside the function body.
+# Usage in SQL:
+#   SELECT * FROM get_revenue_by_period('East', '2025-01-01', '2025-12-31')
+
+spark.sql(f"""
+CREATE OR REPLACE FUNCTION {DB}.get_revenue_by_period(
+    p_region     STRING,
+    p_start_date STRING,
+    p_end_date   STRING
+)
+RETURNS TABLE (
+    store_name        STRING,
+    city              STRING,
+    total_revenue     DOUBLE,
+    transaction_count BIGINT,
+    unique_clients    BIGINT,
+    avg_order_value   DOUBLE
+)
+COMMENT 'Returns store-level revenue metrics for a region and date range. Dates as yyyy-MM-dd strings. Pass region = ALL for every region.'
+RETURN
+  SELECT
+    s.store_name,
+    s.city,
+    ROUND(SUM(t.total_amount), 2)   AS total_revenue,
+    COUNT(t.transaction_id)          AS transaction_count,
+    COUNT(DISTINCT t.client_id)      AS unique_clients,
+    ROUND(AVG(t.total_amount), 2)    AS avg_order_value
+  FROM {DB}.transactions t
+  JOIN {DB}.stores s ON t.store_id = s.store_id
+  WHERE t.is_return = FALSE
+    AND t.transaction_date BETWEEN CAST(p_start_date AS DATE) AND CAST(p_end_date AS DATE)
+    AND (p_region = 'ALL' OR s.region = p_region)
+  GROUP BY s.store_name, s.city
+""")
+
+print(f"✅  Created {DB}.get_revenue_by_period(p_region STRING, p_start_date STRING, p_end_date STRING)")
+
+# COMMAND ----------
+
+# DBTITLE 1,Function 3 — get_top_clients (table-valued)
+# ── Function 3: Table-Valued — get_top_clients ────────────────────────
+# Returns clients for a given store, ranked by lifetime spend.
+# NOTE: Spark treats ROW_NUMBER() <= param as a LIMIT-like expression,
+#       which requires a constant — function params are "unfoldable".
+#       So we return ALL clients with a rank column; callers can filter:
+#       SELECT * FROM get_top_clients(1) WHERE rank <= 10
+
+spark.sql(f"""
+CREATE OR REPLACE FUNCTION {DB}.get_top_clients(
+    p_store_id INT
+)
+RETURNS TABLE (
+    client_name        STRING,
+    email              STRING,
+    membership_tier    STRING,
+    lifetime_spend     DOUBLE,
+    total_orders       INT,
+    last_purchase_date DATE,
+    risk_tier          STRING,
+    rank               INT
+)
+COMMENT 'Returns clients at a given store ranked by lifetime spend, with a risk tier. Use WHERE rank <= N to get top N.'
+RETURN
+  SELECT
+    c.first_name || ' ' || c.last_name  AS client_name,
+    c.email,
+    c.membership_tier,
+    ROUND(c.lifetime_spend, 2)          AS lifetime_spend,
+    c.total_orders,
+    c.last_purchase_date,
+    r.risk_tier,
+    ROW_NUMBER() OVER (ORDER BY c.lifetime_spend DESC) AS rank
+  FROM {DB}.clients c,
+       LATERAL {DB}.classify_client_risk(
+           DATEDIFF(CURRENT_DATE, c.last_purchase_date),
+           c.lifetime_spend
+       ) r
+  WHERE c.preferred_store_id = p_store_id
+""")
+
+print(f"✅  Created {DB}.get_top_clients(p_store_id INT)")
+
+# COMMAND ----------
+
+# DBTITLE 1,Example — call the functions in Genie queries
+# MAGIC %sql
+# MAGIC -- ── Example usage (run after creating the functions above) ─────────────
+# MAGIC
+# MAGIC -- 1️⃣  classify_client_risk: add risk label via LATERAL join
+# MAGIC SELECT
+# MAGIC   c.first_name || ' ' || c.last_name AS client_name,
+# MAGIC   c.lifetime_spend,
+# MAGIC   c.last_purchase_date,
+# MAGIC   r.risk_tier
+# MAGIC FROM ramin_aws_serverless_sandbox.harry_rosen.clients c,
+# MAGIC      LATERAL ramin_aws_serverless_sandbox.harry_rosen.classify_client_risk(
+# MAGIC          DATEDIFF(CURRENT_DATE, c.last_purchase_date),
+# MAGIC          c.lifetime_spend
+# MAGIC      ) r
+# MAGIC WHERE c.is_vip = TRUE
+# MAGIC ORDER BY c.lifetime_spend DESC
+# MAGIC LIMIT 10
+
+# COMMAND ----------
+
+# DBTITLE 1,Genie instructions note
+# MAGIC %md
+# MAGIC    
+# MAGIC    
+# MAGIC ### Using These Functions in Genie
+# MAGIC
+# MAGIC Add the following to your **Genie Instructions** block so Genie knows the functions exist:
+# MAGIC
+# MAGIC ```
+# MAGIC AVAILABLE UC FUNCTIONS (all table-valued):
+# MAGIC - classify_client_risk(days_since_purchase INT, lifetime_spend DOUBLE) → TABLE(days_since_purchase, lifetime_spend, risk_tier)
+# MAGIC   Returns a single-row table with a risk tier: 'Loyal VIP', 'Active', 'High-Value At-Risk', 'Cooling Off', 'VIP Dormant', 'Dormant', 'Lost'
+# MAGIC   Example: SELECT * FROM classify_client_risk(120, 25000)
+# MAGIC   With clients: SELECT c.*, r.risk_tier FROM clients c, LATERAL classify_client_risk(DATEDIFF(CURRENT_DATE, c.last_purchase_date), c.lifetime_spend) r
+# MAGIC
+# MAGIC - get_revenue_by_period(region STRING, start_date STRING, end_date STRING) → TABLE
+# MAGIC   Returns store-level revenue for a region and date range. Pass dates as 'yyyy-MM-dd' strings. Use region = 'ALL' for all regions.
+# MAGIC   Example: SELECT * FROM get_revenue_by_period('East', '2025-01-01', '2025-12-31')
+# MAGIC
+# MAGIC - get_top_clients(store_id INT) → TABLE
+# MAGIC   Returns all clients at a store ranked by lifetime spend, with a risk tier and rank column.
+# MAGIC   Use WHERE rank <= N to get the top N.  Example: SELECT * FROM get_top_clients(1) WHERE rank <= 10
+# MAGIC ```
+# MAGIC
+# MAGIC > **Genie parameter constraints:** Only `STRING`, `INT`, `DOUBLE`, and `BOOLEAN` parameter types are supported. Use `STRING` for dates and cast inside the function. `LIMIT` and limit-like expressions (e.g. `ROW_NUMBER() <= param`) cannot use parameters — return all rows with a rank column and let callers filter.
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ---
 # MAGIC ## 4. Access & Sharing
@@ -311,6 +503,216 @@ print(f"  ALTER TABLE {DB}.transactions SET ROW FILTER {DB}.advisor_row_filter O
 # MAGIC > **Important:** Apply the row filter only in production.
 # MAGIC > For the demo with Jay Sewell, keep RLS off so you can see all data freely.
 # MAGIC > To remove: `ALTER TABLE {DB}.clients DROP ROW FILTER;`
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC ALTER TABLE {DB}.clients DROP ROW FILTER;
+
+# COMMAND ----------
+
+# DBTITLE 1,Section 4.5 — UC Governance Flows into Genie
+# MAGIC %md
+# MAGIC ---
+# MAGIC ## 4.5  Unity Catalog Governance → Genie Enforcement
+# MAGIC
+# MAGIC Genie executes SQL **as the logged-in user**. That means every Unity Catalog
+# MAGIC access control — column masks, row filters, grants — is enforced automatically.
+# MAGIC
+# MAGIC | UC Control | What happens in Genie |
+# MAGIC |---|---|
+# MAGIC | **Column Mask** on `email` | Genie query returns `***@***.***` instead of the real address |
+# MAGIC | **Column Mask** on `lifetime_spend` | Genie query returns `NULL` — user never sees the dollar amount |
+# MAGIC | **Row Filter** on `clients` | Genie query only returns rows the user is allowed to see |
+# MAGIC | **REVOKE SELECT** on a column | Genie gets `INSUFFICIENT_PERMISSIONS` — same as a direct query |
+# MAGIC
+# MAGIC > **Key takeaway:** You do NOT need to configure anything extra in Genie.
+# MAGIC > Governance is enforced at the **catalog layer**, not the app layer.
+# MAGIC
+# MAGIC Below we demonstrate this with your own user (`ramin.amiri@databricks.com`).
+
+# COMMAND ----------
+
+# DBTITLE 1,Step 1 — BEFORE: query clients without restrictions
+# ── Step 1: BEFORE — see full data with no masks or filters ─────────────
+# Run this FIRST to see the unrestricted baseline.
+
+df_before = spark.sql(f"""
+SELECT
+  client_id,
+  first_name || ' ' || last_name AS client_name,
+  email,
+  city,
+  membership_tier,
+  lifetime_spend,
+  client_segment
+FROM {DB}.clients
+WHERE is_vip = TRUE
+ORDER BY lifetime_spend DESC
+LIMIT 10
+""")
+
+print("🔓 BEFORE — No column masks or row filters applied:")
+display(df_before)
+
+# COMMAND ----------
+
+# DBTITLE 1,Step 2 — Create column mask functions
+# ── Step 2: Create column mask functions ────────────────────────────────
+# These functions decide what value to return for a masked column.
+# If the querying user is ramin.amiri@databricks.com → mask the data.
+# Everyone else (e.g. admins) sees the real value.
+
+# Mask 1: Redact email → '***@***.***'
+spark.sql(f"""
+CREATE OR REPLACE FUNCTION {DB}.mask_email(email STRING)
+RETURNS STRING
+COMMENT 'Redacts email for ramin.amiri@databricks.com; others see the real value.'
+RETURN
+  CASE
+    WHEN LOWER(CURRENT_USER()) = 'ramin.amiri@databricks.com'
+    THEN '***@***.***'
+    ELSE email
+  END
+""")
+print(f"✅ Created {DB}.mask_email")
+
+# Mask 2: Hide lifetime_spend → NULL
+spark.sql(f"""
+CREATE OR REPLACE FUNCTION {DB}.mask_lifetime_spend(spend DOUBLE)
+RETURNS DOUBLE
+COMMENT 'Returns NULL for ramin.amiri@databricks.com; others see the real spend.'
+RETURN
+  CASE
+    WHEN LOWER(CURRENT_USER()) = 'ramin.amiri@databricks.com'
+    THEN NULL
+    ELSE spend
+  END
+""")
+print(f"✅ Created {DB}.mask_lifetime_spend")
+
+# COMMAND ----------
+
+# DBTITLE 1,Step 3 — Create row filter function
+# # ── Step 3: Create row filter function ──────────────────────────────────
+# # This function restricts ramin.amiri@databricks.com to only see
+# # Toronto clients. Everyone else sees all rows.
+
+# spark.sql(f"""
+# CREATE OR REPLACE FUNCTION {DB}.city_row_filter(city STRING)
+# RETURNS BOOLEAN
+# COMMENT 'ramin.amiri@databricks.com can only see Toronto clients; others see all.'
+# RETURN
+#   CASE
+#     WHEN LOWER(CURRENT_USER()) = 'ramin.amiri@databricks.com'
+#     THEN city = 'Toronto'
+#     ELSE TRUE
+#   END
+# """)
+# print(f"✅ Created {DB}.city_row_filter")
+
+# COMMAND ----------
+
+# DBTITLE 1,Step 4 — Apply masks and row filter to clients table
+# ── Step 4: Apply column masks + row filter to the clients table ────────
+# After this, YOUR queries (ramin.amiri@databricks.com) will see:
+#   • email       → '***@***.***'
+#   • lifetime_spend → NULL
+#   • only rows where city = 'Toronto'
+
+spark.sql(f"""
+ALTER TABLE {DB}.clients
+  ALTER COLUMN email
+  SET MASK {DB}.mask_email
+""")
+print(f"✅ Column mask applied: email → mask_email")
+
+# spark.sql(f"""
+# ALTER TABLE {DB}.clients
+#   ALTER COLUMN lifetime_spend
+#   SET MASK {DB}.mask_lifetime_spend
+# """)
+# print(f"✅ Column mask applied: lifetime_spend → mask_lifetime_spend")
+
+# spark.sql(f"""
+# ALTER TABLE {DB}.clients
+#   SET ROW FILTER {DB}.city_row_filter ON (city)
+# """)
+# print(f"✅ Row filter applied: city_row_filter(city)")
+# print(f"\n🔒 All governance controls are now active on {DB}.clients")
+
+# COMMAND ----------
+
+# DBTITLE 1,Step 5 — AFTER: same query now shows masked/filtered data
+# ── Step 5: AFTER — run the EXACT same query ────────────────────────────
+# Compare with Step 1. You should see:
+#   • email       = '***@***.***'     (column mask)
+#   • lifetime_spend = NULL            (column mask)
+#   • ONLY Toronto clients             (row filter)
+#
+# If a Genie user asks "Show me VIP clients", Genie runs the same SQL
+# and gets the same masked/filtered result — governance is automatic.
+
+df_after = spark.sql(f"""
+SELECT
+  client_id,
+  first_name || ' ' || last_name AS client_name,
+  email,
+  city,
+  membership_tier,
+  lifetime_spend,
+  client_segment
+FROM {DB}.clients
+WHERE is_vip = TRUE
+ORDER BY lifetime_spend DESC
+LIMIT 10
+""")
+
+print("🔒 AFTER — Column masks + row filter active:")
+print("   • email is redacted")
+print("   • lifetime_spend is NULL")
+print("   • only Toronto clients visible")
+print("   • Genie inherits ALL of these restrictions")
+display(df_after)
+
+# COMMAND ----------
+
+# DBTITLE 1,Genie enforcement explanation
+# MAGIC %md
+# MAGIC ### What This Means for Genie
+# MAGIC
+# MAGIC When `ramin.amiri@databricks.com` opens the Genie space and asks:
+# MAGIC
+# MAGIC > *"Show me our VIP clients"*
+# MAGIC
+# MAGIC Genie generates and runs SQL **as that user**. Unity Catalog intercepts the query and:
+# MAGIC
+# MAGIC 1. **Column mask on `email`** → every email value becomes `***@***.***`
+# MAGIC 2. **Column mask on `lifetime_spend`** → every spend value becomes `NULL`
+# MAGIC 3. **Row filter on `city`** → only Toronto clients are returned
+# MAGIC
+# MAGIC The user sees a valid table — no error, no empty result — but **sensitive data is hidden**.
+# MAGIC They don't even know the data exists.
+# MAGIC
+# MAGIC > **No Genie configuration is needed.** The same UC policies apply whether the user
+# MAGIC > runs a query in a notebook, a dashboard, the SQL editor, or Genie.
+
+# COMMAND ----------
+
+# DBTITLE 1,Step 6 — CLEANUP: remove all masks and filters
+# ── Step 6: CLEANUP — remove everything so the rest of the demo works ───
+# ⚠️  Run this cell to restore full access after the governance demo.
+
+spark.sql(f"ALTER TABLE {DB}.clients ALTER COLUMN email DROP MASK")
+print("✅ Removed column mask from email")
+
+spark.sql(f"ALTER TABLE {DB}.clients ALTER COLUMN lifetime_spend DROP MASK")
+print("✅ Removed column mask from lifetime_spend")
+
+spark.sql(f"ALTER TABLE {DB}.clients DROP ROW FILTER")
+print("✅ Removed row filter from clients")
+
+print(f"\n🔓 {DB}.clients is back to full, unrestricted access.")
 
 # COMMAND ----------
 
